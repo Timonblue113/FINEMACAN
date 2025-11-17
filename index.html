@@ -42,18 +42,19 @@
 
   <!-- Search -->
   <div class="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm relative">
-    <div class="flex gap-2 items-center">
-      <div class="relative flex-1">
-        <input id="searchBox" placeholder="Tìm tên / SKU / UPC..." class="w-full p-3 border rounded-md dark:bg-slate-800 dark:border-slate-600" />
-        <div id="suggestions" class="suggestions bg-white dark:bg-slate-800 border rounded-md hidden"></div>
-      </div>
-      <select id="mode" class="p-2 border rounded-md dark:bg-slate-800 dark:border-slate-600 text-sm">
-        <option value="fuzzy">Fuzzy</option>
-        <option value="substr">Substring</option>
-      </select>
-      <button id="clearBtn" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 rounded-md">Xóa</button>
-      <button id="searchBtn" class="px-4 py-2 bg-blue-600 text-white rounded-md">Tìm</button>
-    </div>
+   <div class="flex flex-col sm:flex-row gap-2 items-stretch">
+  <div class="relative flex-1">
+    <input id="searchBox" placeholder="Tìm tên / SKU / UPC..." 
+           class="w-full p-3 border rounded-md dark:bg-slate-800 dark:border-slate-600" />
+    <div id="suggestions" class="suggestions bg-white dark:bg-slate-800 border rounded-md hidden"></div>
+  </div>
+  <select id="mode" class="p-2 border rounded-md dark:bg-slate-800 dark:border-slate-600 text-sm w-full sm:w-auto">
+    <option value="fuzzy">Fuzzy</option>
+    <option value="substr">Substring</option>
+  </select>
+  <button id="clearBtn" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 rounded-md w-full sm:w-auto">Xóa</button>
+  <button id="searchBtn" class="px-4 py-2 bg-blue-600 text-white rounded-md w-full sm:w-auto">Tìm</button>
+</div>
     <div class="flex items-center gap-3 mt-3 text-sm text-slate-600 dark:text-slate-400">
       <div id="stats">Đang tải dữ liệu...</div>
       <div class="ml-auto">Hiển thị <span id="limitLabel">0</span> kết quả</div>
