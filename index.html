@@ -75,7 +75,7 @@
 <script>
 /* ---------------- Dark Mode ---------------- */
 if(localStorage.getItem("dark")==="1") document.documentElement.classList.add("dark");
-toggleDark.onclick = ()=>{
+toggleDark.onclick = ()=> {
   document.documentElement.classList.toggle("dark");
   localStorage.setItem("dark", document.documentElement.classList.contains("dark")?"1":"0");
 };
@@ -83,25 +83,28 @@ toggleDark.onclick = ()=>{
 /* ---------------- Global ---------------- */
 let DATA=[], results=[], ready=false, displayLimit=100;
 const MAX_DISPLAY=2000;
-const normalize = s=>(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+const normalize = s=>(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 
 /* ---------------- Worker ---------------- */
 const workerCode = `
 importScripts("https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.min.js");
 let DATA=[], fuse=null;
-const normalize = s=>(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+const normalize = s=>(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 onmessage = e=>{
   const {type,payload} = e.data;
   if(type==="load"){
     DATA = payload.data;
-    fuse = new Fuse(DATA,{keys:["name","sku","upc"], includeScore:true, threshold:0.35, ignoreLocation:true});
+    fuse = new Fuse(DATA,{keys:["_search"], includeScore:true, threshold:0.35, ignoreLocation:true});
     postMessage({type:"loaded"});
   }
   if(type==="search"){
     const {query,mode,limit} = payload;
     let res=[];
-    if(mode==="fuzzy" && fuse) res=fuse.search(query,{limit}).map(r=>r.item);
-    else { const nq=normalize(query); res=DATA.filter(r=>r._search.includes(nq)).slice(0,limit);}
+    if(mode==="fuzzy" && fuse) res=fuse.search(query,{limit}).map(r=>r.item.index);
+    else { 
+      const nq=normalize(query); 
+      res=DATA.filter(r=>r._search.includes(nq)).slice(0,limit).map(r=>r.index);
+    }
     postMessage({type:"result", data:res});
   }
 };
@@ -110,7 +113,12 @@ const worker = new Worker(URL.createObjectURL(new Blob([workerCode],{type:"appli
 worker.onmessage = e=>{
   const {type,data}=e.data;
   if(type==="loaded"){ ready=true; stats.textContent=`Tải xong ${DATA.length} dòng`; }
-  if(type==="result"){ results=data; displayLimit=100; stats.textContent=`Tìm thấy ${results.length}`; renderResults(results.slice(0,displayLimit)); }
+  if(type==="result"){
+    results = data.map(i=>DATA[i]); // lấy object gốc
+    displayLimit=100;
+    stats.textContent=`Tìm thấy ${results.length}`;
+    renderResults(results.slice(0,displayLimit));
+  }
 };
 
 /* ---------------- Load Google Sheet ---------------- */
@@ -118,25 +126,31 @@ function findColIndex(keysLower, patterns){ for(let p of patterns){ const idx=ke
 
 async function loadFromGoogleSheet(url){
   stats.textContent="Đang tải dữ liệu từ Google Sheet...";
-  const res = await fetch(url);
-  const csvText = await res.text();
-  const sheet = XLSX.utils.sheet_to_json(XLSX.utils.csv_to_sheet(csvText), {defval:""});
-  DATA = sheet.map(r=>{
-    const keysOrig=Object.keys(r), keysLower=keysOrig.map(k=>String(k).toLowerCase());
-    const idxName=findColIndex(keysLower, ["description","tên","name","product","item","hang","sp"]);
-    const idxSku=findColIndex(keysLower, ["sku","mã","ma","masp","code","itemcode","productcode"]);
-    const idxUpc=findColIndex(keysLower, ["upc","ean","barcode","bar","mavach"]);
-    const idxTon=findColIndex(keysLower, ["tồn","ton","sl","số lượng","soluong","qty","quantity"]);
-    const idxGia=findColIndex(keysLower, ["giá","gia","price"]);
-    const name=idxName!==-1?String(r[keysOrig[idxName]]||""):"";
-    const sku=idxSku!==-1?String(r[keysOrig[idxSku]]||""):"";
-    const upc=idxUpc!==-1?String(r[keysOrig[idxUpc]]||""):"";
-    const ton=idxTon!==-1?String(r[keysOrig[idxTon]]||""):"";
-    const gia=idxGia!==-1?String(r[keysOrig[idxGia]]||""):"";
-    return {name, sku, upc, ton, gia, _search:normalize(name+" "+sku+" "+upc)};
-  });
-  worker.postMessage({type:"load", payload:{data:DATA}});
-  stats.textContent=`Đã nạp ${DATA.length.toLocaleString()} dòng từ Google Sheet`;
+  try{
+    const res = await fetch(url);
+    const csvText = await res.text();
+    const sheet = XLSX.utils.csv_to_sheet(csvText);
+    DATA = XLSX.utils.sheet_to_json(sheet, {defval:""}).map((r,i)=>{
+      const keysOrig=Object.keys(r), keysLower=keysOrig.map(k=>String(k).toLowerCase());
+      const idxName=findColIndex(keysLower, ["description","tên","name","product","item","hang","sp"]);
+      const idxSku=findColIndex(keysLower, ["sku","mã","ma","masp","code","itemcode","productcode"]);
+      const idxUpc=findColIndex(keysLower, ["upc","ean","barcode","bar","mavach"]);
+      const idxTon=findColIndex(keysLower, ["tồn","ton","sl","số lượng","soluong","qty","quantity"]);
+      const idxGia=findColIndex(keysLower, ["giá","gia","price"]);
+      const name=idxName!==-1?String(r[keysOrig[idxName]]||""):"";
+      const sku=idxSku!==-1?String(r[keysOrig[idxSku]]||""):"";
+      const upc=idxUpc!==-1?String(r[keysOrig[idxUpc]]||""):"";
+      const ton=idxTon!==-1?String(r[keysOrig[idxTon]]||""):"";
+      const gia=idxGia!==-1?String(r[keysOrig[idxGia]]||""):"";
+      return {name, sku, upc, ton, gia, _search:normalize(name+" "+sku+" "+upc), index:i};
+    });
+    // Gửi worker chỉ gồm _search + index
+    worker.postMessage({type:"load", payload:{data:DATA.map(r=>({index:r.index,_search:r._search}))}});
+    stats.textContent=`Đã nạp ${DATA.length.toLocaleString()} dòng từ Google Sheet`;
+  }catch(e){
+    console.error(e);
+    stats.textContent="Lỗi tải dữ liệu";
+  }
 }
 
 // Link Google Sheet CSV
@@ -155,7 +169,12 @@ const doSuggest = debounce(()=>{
 },120);
 
 /* ---------------- Search ---------------- */
-function executeSearch(){ if(!ready) return alert("Chưa load danh mục!"); const q=searchBox.value.trim(); if(!q) return; worker.postMessage({type:"search", payload:{query:q, mode:mode.value, limit:MAX_DISPLAY}}); }
+function executeSearch(){ 
+  if(!ready) return alert("Chưa load danh mục!"); 
+  const q=searchBox.value.trim(); 
+  if(!q) return; 
+  worker.postMessage({type:"search", payload:{query:q, mode:mode.value, limit:MAX_DISPLAY}}); 
+}
 
 /* ---------------- Render ---------------- */
 function escapeHtml(s){return String(s||"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m]));}
@@ -187,7 +206,13 @@ searchBtn.onclick=executeSearch;
 searchBox.onkeydown=e=>{if(e.key==="Enter") executeSearch();};
 searchBox.oninput=doSuggest;
 clearBtn.onclick=()=>{searchBox.value=""; results=[]; renderResults([]);};
-suggestions.onclick=e=>{const row=e.target.closest(".suggestion-item"); if(!row) return; searchBox.value=row.dataset.name||row.dataset.sku||row.dataset.upc||""; suggestions.classList.add("hidden"); executeSearch();};
+suggestions.onclick=e=>{
+  const row=e.target.closest(".suggestion-item"); 
+  if(!row) return; 
+  searchBox.value=row.dataset.name||row.dataset.sku||row.dataset.upc||""; 
+  suggestions.classList.add("hidden"); 
+  executeSearch();
+};
 document.body.onclick=e=>{if(!e.target.closest("#suggestions")&&!e.target.closest("#searchBox")) suggestions.classList.add("hidden");};
 loadMore.onclick=()=>{displayLimit=Math.min(displayLimit+200,results.length); renderResults(results.slice(0,displayLimit));};
 exportCsv.onclick=()=>exportCSV(results.slice(0,displayLimit));
