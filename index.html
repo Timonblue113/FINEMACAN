@@ -128,8 +128,11 @@ async function loadFromGoogleSheet(url){
   stats.textContent="Đang tải dữ liệu từ Google Sheet...";
   try{
     const res = await fetch(url);
-    const csvText = await res.text();
-    const sheet = XLSX.utils.csv_to_sheet(csvText);
+    let csvText = await res.text();
+    csvText = csvText.replace(/^\uFEFF/, ""); // loại bỏ BOM nếu có
+    const wb = XLSX.read(csvText, {type:"string"});
+    const sheetName = wb.SheetNames[0];
+    const sheet = wb.Sheets[sheetName];
     DATA = XLSX.utils.sheet_to_json(sheet, {defval:""}).map((r,i)=>{
       const keysOrig=Object.keys(r), keysLower=keysOrig.map(k=>String(k).toLowerCase());
       const idxName=findColIndex(keysLower, ["description","tên","name","product","item","hang","sp"]);
@@ -137,14 +140,13 @@ async function loadFromGoogleSheet(url){
       const idxUpc=findColIndex(keysLower, ["upc","ean","barcode","bar","mavach"]);
       const idxTon=findColIndex(keysLower, ["tồn","ton","sl","số lượng","soluong","qty","quantity"]);
       const idxGia=findColIndex(keysLower, ["giá","gia","price"]);
-      const name=idxName!==-1?String(r[keysOrig[idxName]]||""):"";
-      const sku=idxSku!==-1?String(r[keysOrig[idxSku]]||""):"";
-      const upc=idxUpc!==-1?String(r[keysOrig[idxUpc]]||""):"";
-      const ton=idxTon!==-1?String(r[keysOrig[idxTon]]||""):"";
-      const gia=idxGia!==-1?String(r[keysOrig[idxGia]]||""):"";
+      const name=idxName!==-1?String(r[keysOrig[idxName]]||"").normalize():"";
+      const sku=idxSku!==-1?String(r[keysOrig[idxSku]]||"").normalize():"";
+      const upc=idxUpc!==-1?String(r[keysOrig[idxUpc]]||"").normalize():"";
+      const ton=idxTon!==-1?String(r[keysOrig[idxTon]]||"").normalize():"";
+      const gia=idxGia!==-1?String(r[keysOrig[idxGia]]||"").normalize():"";
       return {name, sku, upc, ton, gia, _search:normalize(name+" "+sku+" "+upc), index:i};
     });
-    // Gửi worker chỉ gồm _search + index
     worker.postMessage({type:"load", payload:{data:DATA.map(r=>({index:r.index,_search:r._search}))}});
     stats.textContent=`Đã nạp ${DATA.length.toLocaleString()} dòng từ Google Sheet`;
   }catch(e){
